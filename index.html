@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hall Vehicle Log</title>
+<link rel="manifest" href="manifest.json">
+
+<link rel="icon" type="image/png" href="icon-192.png">
+
+<meta name="theme-color" content="#2563eb">
+
+<link rel="apple-touch-icon" href="icon-192.png">
+<!-- Google Fonts + Font Awesome -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<style>
+body{font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:20px}
+.container{max-width:1200px;margin:auto;background:#fff;padding:20px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.1)}
+h1{text-align:center}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+input,select,button{padding:10px;border:1px solid #ccc;border-radius:6px;width:100%;box-sizing:border-box}
+button{cursor:pointer}
+.add{background:#28a745;color:#fff;border:none}
+.export{background:#007bff;color:#fff;border:none}
+table{width:100%;border-collapse:collapse;margin-top:20px}
+th,td{border:1px solid #ddd;padding:8px;text-align:center}
+th{background:#333;color:#fff}
+.edit{background:#ffc107;border:none;padding:6px}
+.delete{background:#dc3545;color:#fff;border:none;padding:6px}
+.summary{margin-top:15px;padding:10px;background:#eef}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Hall Vehicle Log</h1>
+
+<div class="grid">
+<input type="date" id="date">
+<input type="text" id="vehicle" placeholder="Vehicle">
+<input type="text" id="driver" placeholder="Driver">
+<input type="number" id="start" placeholder="Start Odometer">
+<input type="number" id="end" placeholder="End Odometer">
+<input type="number" id="fuelCost" placeholder="Fuel Cost">
+<input type="number" id="fuelLiters" placeholder="Fuel Liters">
+<button class="add" onclick="saveLog()">Save Log</button>
+</div>
+
+<br>
+
+<div class="grid">
+<input type="text" id="searchDriver" placeholder="Search Driver" onkeyup="renderTable()">
+<select id="monthFilter" onchange="renderTable()">
+<option value="">All Months</option>
+<option value="0">January</option>
+<option value="1">February</option>
+<option value="2">March</option>
+<option value="3">April</option>
+<option value="4">May</option>
+<option value="5">June</option>
+<option value="6">July</option>
+<option value="7">August</option>
+<option value="8">September</option>
+<option value="9">October</option>
+<option value="10">November</option>
+<option value="11">December</option>
+</select>
+<button class="export" onclick="exportCSV()">Export Excel CSV</button>
+</div>
+
+<div class="summary" id="summary"></div>
+
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Vehicle</th>
+<th>Driver</th>
+<th>Start</th>
+<th>End</th>
+<th>Distance</th>
+<th>Fuel Cost</th>
+<th>Fuel Liters</th>
+<th>Fuel Economy</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody id="logTable"></tbody>
+</table>
+</div>
+
+<script>
+let logs = JSON.parse(localStorage.getItem("vehicleLogs")) || [];
+let editIndex = -1;
+
+function saveData(){
+ localStorage.setItem("vehicleLogs", JSON.stringify(logs));
+}
+
+function saveLog(){
+ const date=document.getElementById("date").value;
+ const vehicle=document.getElementById("vehicle").value;
+ const driver=document.getElementById("driver").value;
+ const start=parseFloat(document.getElementById("start").value)||0;
+ const end=parseFloat(document.getElementById("end").value)||0;
+ const fuelCost=parseFloat(document.getElementById("fuelCost").value)||0;
+ const fuelLiters=parseFloat(document.getElementById("fuelLiters").value)||0;
+
+ if(!date || !vehicle || !driver){ alert("Complete required fields"); return; }
+
+ const distance=end-start;
+ const economy=fuelLiters>0?(distance/fuelLiters).toFixed(2):0;
+
+ const record={date,vehicle,driver,start,end,distance,fuelCost,fuelLiters,economy};
+
+ if(editIndex>-1){
+   logs[editIndex]=record;
+   editIndex=-1;
+ }else{
+   logs.push(record);
+ }
+
+ saveData();
+ clearForm();
+ renderTable();
+}
+
+function clearForm(){
+ document.querySelectorAll("input").forEach(i=>{
+   if(i.id!=="searchDriver") i.value="";
+ });
+}
+
+function editLog(i){
+ const r=logs[i];
+ document.getElementById("date").value=r.date;
+ document.getElementById("vehicle").value=r.vehicle;
+ document.getElementById("driver").value=r.driver;
+ document.getElementById("start").value=r.start;
+ document.getElementById("end").value=r.end;
+ document.getElementById("fuelCost").value=r.fuelCost;
+ document.getElementById("fuelLiters").value=r.fuelLiters;
+ editIndex=i;
+}
+
+function deleteLog(i){
+ if(confirm("Delete record?")){
+   logs.splice(i,1);
+   saveData();
+   renderTable();
+ }
+}
+
+function renderTable(){
+ const tbody=document.getElementById("logTable");
+ tbody.innerHTML="";
+
+ const search=document.getElementById("searchDriver").value.toLowerCase();
+ const month=document.getElementById("monthFilter").value;
+
+ let totalDistance=0,totalFuel=0,totalCost=0;
+
+ logs.forEach((r,i)=>{
+
+   const logMonth=new Date(r.date).getMonth();
+
+   if(search && !r.driver.toLowerCase().includes(search)) return;
+   if(month!=="" && logMonth!=month) return;
+
+   totalDistance+=Number(r.distance);
+   totalFuel+=Number(r.fuelLiters);
+   totalCost+=Number(r.fuelCost);
+
+   tbody.innerHTML+=`
+   <tr>
+   <td>${r.date}</td>
+   <td>${r.vehicle}</td>
+   <td>${r.driver}</td>
+   <td>${r.start}</td>
+   <td>${r.end}</td>
+   <td>${r.distance}</td>
+   <td>${r.fuelCost}</td>
+   <td>${r.fuelLiters}</td>
+   <td>${r.economy} km/L</td>
+   <td>
+   <button class="edit" onclick="editLog(${i})">Edit</button>
+   <button class="delete" onclick="deleteLog(${i})">Delete</button>
+   </td>
+   </tr>`;
+ });
+
+ const avgEconomy=totalFuel>0?(totalDistance/totalFuel).toFixed(2):0;
+
+ document.getElementById("summary").innerHTML=`
+ <b>Monthly Totals</b><br>
+ Distance: ${totalDistance.toFixed(2)} km |
+ Fuel: ${totalFuel.toFixed(2)} L |
+ Fuel Cost: ${totalCost.toFixed(2)} |
+ Avg Economy: ${avgEconomy} km/L`;
+}
+
+function exportCSV(){
+ let csv="Date,Vehicle,Driver,Start,End,Distance,Fuel Cost,Fuel Liters,Fuel Economy\n";
+ logs.forEach(r=>{
+   csv+=`${r.date},${r.vehicle},${r.driver},${r.start},${r.end},${r.distance},${r.fuelCost},${r.fuelLiters},${r.economy}\n`;
+ });
+
+ const blob=new Blob([csv],{type:"text/csv"});
+ const a=document.createElement("a");
+ a.href=URL.createObjectURL(blob);
+ a.download="Vehicle_Log_Book.csv";
+ a.click();
+}
+
+renderTable();
+</script>
+</body>
+</html>
